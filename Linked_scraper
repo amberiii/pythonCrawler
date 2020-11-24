@@ -1,0 +1,418 @@
+import os
+import time
+import random
+import selenium
+import platform
+import pandas as pd
+from datetime import datetime
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC 
+from selenium.common.exceptions import ElementNotVisibleException
+from selenium.common.exceptions import StaleElementReferenceException
+from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import WebDriverException
+from selenium.webdriver.common.action_chains import ActionChains
+
+# Detection if you have config
+if os.path.isfile('config.py'):
+    from config import username, password
+
+# Initializes the chromedriver
+def init():
+    global driver
+    search_term = ""
+    try:
+        cdurl = 'https://chromedriver.chromium.org/'
+        chrome_url = 'https://www.google.com/chrome/'
+        #print("McCombs School of Business".center(60, '-'))
+        print('LinkedIn Web-Scraping App. v1.0'.center(60, '-'))
+        print("".center(60, '-'))
+        print('\nDo you have a chromedriver installed? (Y/N): ')
+        cdcheck = input()
+        print('\nDo you have Google Chrome installed? (Y/N): ')
+        chrome_check = input()
+        if cdcheck.lower() == 'y' and chrome_check.lower() == 'y':
+            print('\nDetecting operating system...')
+            plt = platform.system()
+
+            if plt == "Darwin":
+                # MacOSX webdriver initialization 
+                driver = webdriver.Chrome('/usr/local/bin/chromedriver')
+                driver.get('http://www.linkedin.com/')
+            elif plt == "Windows":
+                # Windows webdriver initialization 
+                driver = webdriver.Chrome('chromedriver.exe')
+                driver.get('http://www.linkedin.com/')
+            else:
+                print("Your operating system isn't currently supported.")
+                quit()
+            print('Chromedriver located successfully, launching script')
+        else:
+            if cdcheck.lower() == 'n' and chrome_check.lower() == 'y':
+                print('\nPlease install the latest stable version of chromedriver, you can use the link below:')
+                print(f'\n{cdurl}')
+            elif cdcheck.lower() == 'y' and chrome_check.lower() == 'n':
+                print('\nPlease install Google Chrome, you can use the link below:')
+                print(f'\n{chrome_url}')
+            elif cdcheck.lower() == 'n' and chrome_check.lower() == 'n':
+                print('\nPlease install Google Chrome and chromedriver, you can use the links below:')
+                print(f'\n{chrome_url}')
+                print(f'\n{cdurl}')
+    except:
+        print('Could not initialize chromedriver successfully.')
+        plt = platform.system()
+        if plt == "Darwin":
+            print('Make sure your chromedriver is located in "/usr/local/bin/chromedriver"')
+        if plt == "Windows":    
+            print('Make sure your chromedriver is located in the LI-scraper folder')
+
+    return driver
+
+# LinkedIn login sequence
+def login(username, password):
+    login = driver.find_element_by_class_name("nav__button-secondary")
+    ## wait
+    wait = random.uniform(random.random()*1,random.random()*6)
+    time.sleep(wait)
+    login.click()
+    ## wait
+    wait = random.uniform(random.random()*3,random.random()*10)
+    time.sleep(wait)
+    username_input = driver.find_element_by_name("session_key")
+    username_input.send_keys(username)
+    ## wait
+    wait = random.uniform(random.random()*2,random.random()*8)
+    time.sleep(wait)
+    pass_input = driver.find_element_by_id("password")
+    pass_input.send_keys(password)
+
+    ## wait
+    wait = random.uniform(random.random()*2,random.random()*4)
+    time.sleep(wait)
+    signon = driver.find_element_by_css_selector("button")
+    signon.click()
+
+# Multi-keyword search function
+def networkSearch():
+    global search_term
+    search_input = driver.find_element_by_class_name("search-global-typeahead__input")
+    print("\nMake sure to minimize your chat window before proceeding")
+    print("\nWhat keywords would you like to search your network for? I.e.: austin manager")
+    kwarg = input()
+    search_input.send_keys(kwarg)
+    wait = random.uniform(random.random()*1,random.random()*3)
+    time.sleep(wait)
+    search_input.send_keys(u'\ue007')
+    wait = random.uniform(random.random()*6,random.random()*10)
+    time.sleep(wait)
+    search_term = kwarg.replace(' ', '-').lower()
+    driver.find_element_by_css_selector("[aria-label='View only People results']").click()
+
+# Future-use function
+def simpleSearch():
+    global search_term
+    print("\nMake sure to minimize your chat window before proceeding")
+    print("\nWhat keywords would you like to search your network for? I.e.: austin manager")
+    kwargs = input()
+    kwstring = ''
+    search_term = kwarg.replace(' ', '-').lower()
+    for k in kwargs:
+        kwstring += str(k)
+        kwstring += '%20'
+    driver.get(f'http://www.linkedin.com/search/results/people/?keywords={kwstring}&origin=CLUSTER_EXPANSION')
+
+# Fetching Urls
+def getUrls():
+    numtargets = 0
+    numurls = 0
+    print('\n(The larger the number, the higher likelihood LinkedIn detects us as a bot during this session.)'
+        '\n How many profiles would you like to scrape?')
+    numtargets = int(input())
+    substring = '/in/'
+    links = []
+    while numurls < numtargets:
+        wait = random.uniform(random.random()*2,random.random()*4)
+        time.sleep(wait)
+        elems = driver.find_elements_by_xpath("//a[@href]")
+        for elem in elems:
+            if substring in elem.get_attribute("href"):
+                if elem.get_attribute("href") not in links:
+                    links.append(elem.get_attribute("href"))
+                    numurls += 1
+                    if numurls >= numtargets:
+                        break
+        wait = random.uniform(random.random()*2,random.random()*4)
+        time.sleep(wait)
+        driver.execute_script("var scrollingElement = (document.scrollingElement || document.body);scrollingElement.scrollTop = scrollingElement.scrollHeight;")
+        wait = random.uniform(random.random()*3,random.random()*5)
+        time.sleep(wait)
+        driver.find_element_by_xpath("//button[@aria-label='Next']").click()
+
+    return links
+
+# Full compilation
+def scrape():
+    driver = init()
+    # Allow time for initialization to load
+    wait = random.uniform(random.random()*4,random.random()*8)
+    time.sleep(wait)
+
+    # Check if a config file exists. If not, user enters login credentials
+    if os.path.isfile('config.py'):
+        login(username, password)
+    else:
+        print('This data is stored only within this session of the script, ' +
+        'and will need to be re-entered each time you run the script.' +
+        'If you plan on running this script frequently, please create a ' +
+        'config.py file and store your credentials there.\n')
+        print('Log into LinkedIn'.center(60, '-'))
+        print('\nUsername: ')
+        usr = input()
+        print('Password: ')
+        psw = input()
+        login(usr, psw)
+
+    
+    # Start the search process. Some data scientists have theorized that organically searching through LinkedIn's search bar tailors more accurate search results over time.
+    # For this reason, we will primarily search using the search bar. However, LinkedIn often manipulates DOM elements of the search bar to break web-scrapers code. We alternate
+    # between search bar and direct url entry, in case it breaks our networkSearch function - also so that we don't always appear to be a robot.
+    
+    # reCAPTCHA handling
+    try:    
+        WebDriverWait(driver, 10).until(EC.frame_to_be_available_and_switch_to_it((By.CSS_SELECTOR,"iframe[name^='a-'][src^='https://www.google.com/recaptcha/api2/anchor?']")))
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//span[@class='recaptcha-checkbox goog-inline-block recaptcha-checkbox-unchecked rc-anchor-checkbox']/div[@class='recaptcha-checkbox-checkmark']"))).click()
+        wait = random.uniform(random.random()*3,random.random()*5)
+        time.sleep(wait)
+
+        print('\nWhat would you like to scrape?:' +
+            '\nA: a batch of users' +
+            '\nor' +
+            '\nB: one specific user?')
+        scrape_question = input()
+        if scrape_question.lower() == 'a':
+            try: 
+                networkSearch()
+                wait = random.uniform(random.random()*3,random.random()*5)
+            except:
+                simpleSearch()
+                wait = random.uniform(random.random()*3,random.random()*5)
+            # except:
+            #    googleSearch()
+            # Will eventually feature Google searching for LinkedIn profiles.
+            links = (getUrls())
+        elif scrape_question.lower() == 'b':
+            print('Please enter the URL of the user you want to scrape. (shift+insert to paste into git-bash')
+            temp_url = input()
+            links = []
+            links.append(temp_url)
+        else:
+            print('Incorrect input. Shutting down..')
+            quit()
+
+    except:
+        # Option for one scrape or batch
+        print('\nWhat would you like to scrape?:' +
+            '\nA: a batch of users' +
+            '\nor' +
+            '\nB: one specific user?')
+        scrape_question = input()
+        if scrape_question.lower() == 'a':
+            try: 
+                networkSearch()
+                wait = random.uniform(random.random()*3,random.random()*5)
+            except:
+                simpleSearch()
+                wait = random.uniform(random.random()*3,random.random()*5)
+            # except:
+            #    googleSearch()
+            # Will eventually feature Google searching for LinkedIn profiles.
+            links = (getUrls())
+        elif scrape_question.lower() == 'b':
+            print('Please enter the URL of the user you want to scrape. (shift+insert to paste into git-bash')
+            temp_url = input()
+            links = []
+            links.append(temp_url)
+        else:
+            print('Incorrect input. Shutting down..')
+            quit()
+
+    wait = random.uniform(random.random()*3,random.random()*5)
+    time.sleep(wait)
+
+
+
+    ##########################
+    #### Main data scrape ####
+    ###########################
+    people = []
+    broken_scrapes = []
+    numbroken = 0
+    numscraped = 0
+    numerror = 0
+    try:
+        for link in links:
+            driver.get(link)
+            wait = random.uniform(random.random()*3,random.random()*5)
+            time.sleep(wait)
+            
+            
+            # Set all variables to none, so that memory doesnt overwrite NoneType's
+            university = degree = grad_date = position_title = company = companyname = joblocation = duration = 'None'
+            # Name
+            name = driver.find_elements_by_xpath("//section/div/div/div/*/li")[0].text.strip()
+            # Location
+            try:
+                    location = driver.find_element_by_class_name("pv-top-card--list-bullet")
+                    location = location.find_element_by_tag_name('li').text
+            except:
+                    location = 'Not listed'
+            
+            # Experience. 
+            # Has capability to fetch all sessions of experience, currently only returns most recent.
+            experience = False
+            try:
+                    _ = WebDriverWait(driver, 6).until(
+                        EC.presence_of_element_located((By.ID, "experience-section")))
+                    exp = driver.find_element_by_id("experience-section")
+                    data_integrity = 'high'
+            # Some profiles have bulky featured, activity and resume sections. If we scroll past them, we can locate experience.
+            except TimeoutException as ex_e:
+                    try:
+                        driver.execute_script("window.scrollTo(0,(document.body.scrollHeight / 3))")
+                        wait = random.uniform(random.random()*3,random.random()*5)
+                        time.sleep(wait)
+                        _ = WebDriverWait(driver, 6).until(
+                            EC.presence_of_element_located((By.ID, "experience-section")))
+                        driver.execute_script('arguments[0].scrollIntoView(true);', _)
+                        exp = driver.find_element_by_id("experience-section")
+                        data_integrity = 'low'
+                    except:
+                        exp = None
+                        print(f'{numscraped+1}/{len(links)} [[{name}]] has no listed experience. fetching error: {ex_e}')
+                        data_integrity = 'low'
+                        
+            except:
+                    exp = None
+                    print(f'{numscraped+1}/{len(links)} [[{name}]] saw Experience section error: {ex_e}')
+                
+            if (exp is not None):
+                for position in exp.find_elements_by_class_name("pv-position-entity"):
+                        while experience is False:
+                            position_title = position.find_element_by_tag_name(
+                                "h3").text.encode('utf-8').strip()
+
+                            try:
+                                company = position.find_elements_by_tag_name(
+                                    "p")[1].text.encode('utf-8').strip()
+                                times = str(position.find_elements_by_tag_name("h4")[
+                                            0].find_elements_by_tag_name("span")[1].text.strip())
+                                from_date = " ".join(times.split(' ')[:2])
+                                to_date = " ".join(times.split(' ')[3:])
+                                duration = position.find_elements_by_tag_name(
+                                    "h4")[1].find_elements_by_tag_name("span")[1].text.strip()
+                                joblocation = position.find_elements_by_tag_name(
+                                    "h4")[2].find_elements_by_tag_name("span")[1].text.strip()
+                                experience = True
+                                numscraped += 1
+                            except Exception as e:
+                                company = None
+                                from_date, to_date, duration, joblocation = (
+                                    None, None, None, None)
+                                numerror += 1
+                                numscraped += 1
+                            experience = True
+                                
+            # Education. 
+            # Has capability to fetch all sessions of education, currently only returns most recent.
+            education = False
+            try:
+                    _ = WebDriverWait(driver, 6).until(
+                        EC.presence_of_element_located((By.ID, "education-section")))
+                    edu = driver.find_element_by_id("education-section")
+            # Some profiles have bulky featured, activity and resume sections. If we scroll past them, we can locate education.
+            except TimeoutException as ed_e:
+                    try:
+                        driver.execute_script("window.scrollTo(0,(document.body.scrollHeight / 3))")
+                        wait = random.uniform(random.random()*3,random.random()*5)
+                        time.sleep(wait)
+                        _ = WebDriverWait(driver, 6).until(
+                            EC.presence_of_element_located((By.ID, "education-section")))
+                        driver.execute_script('arguments[0].scrollIntoView(true);', _)
+                        edu = driver.find_element_by_id("education-section")
+                        data_integrity = 'low'
+                    except:
+                        edu = None
+                        print(f'{numscraped}/{len(links)} [[{name}]] has no listed education. fetching error: {ed_e}')  
+            except:
+                    edu = None
+                    print(f'{numscraped}/{len(links)} [[{name}]] saw Education section error: {ed_e}')        
+            if (edu is not None):
+                for school in edu.find_elements_by_class_name("pv-profile-section__list-item"):
+                    while education is False:
+                        university = school.find_element_by_class_name(
+                            "pv-entity__school-name").text.encode('utf-8').strip()
+
+                        try:
+                            degree = school.find_element_by_class_name(
+                                "pv-entity__degree-name").find_elements_by_tag_name("span")[1].text.encode('utf-8').strip()
+                            times = school.find_element_by_class_name(
+                                "pv-entity__dates").find_elements_by_tag_name("span")[1].text.strip()
+                            from_date, to_date = (times.split(
+                                " ")[0], times.split(" ")[2])
+                            education = True
+                        except Exception as educ_e:
+                            degree = None
+                            from_date, to_date = (None, None)
+                            print(f'{numscraped}/{len(links)} WARNING: [[{name}]] education section is irregular. fetching error {educ_e}' 
+                                'fetching error: {e}')
+                        grad_date = to_date
+                        education = True
+                                            
+            # Adding all data fetched to tuple, then adding tuple to list of people
+            # Checking if none, decode from byte to string
+            if company is not None and type(company) != str:
+                companyname = company.decode("utf-8")
+            if position_title is not None and type(position_title) != str:
+                position_title = position_title.decode("utf-8") 
+            if university is not None and type(university) != str:
+                university = university.decode("utf-8") 
+            if degree is not None and type(degree) != str:
+                degree = degree.decode("utf-8") 
+                
+            temptuple = (link, name, location, university, degree, grad_date, position_title, companyname, joblocation, duration, data_integrity)
+            people.append(temptuple)
+            print(f'{numscraped}/{len(links)} profiles scraped')
+        if (numerror + numscraped) > 2:
+            errorpct = float(numerror / numscraped)
+            print(f'Finished scrape with an incompletion percentage of: {errorpct}')
+
+
+        df = pd.DataFrame(people, columns=['link', 'name', 'location', 'university', 'degree', 'grad_date', 'position_title', 'company_name', 'job_location', 'duration', 'data_integrity'])
+        today = str(datetime.now())[0:10]
+        total_searched = len(links)
+        if scrape_question.lower() == 'a':
+            out_path = f"resources\\{today}-{search_term}-{total_searched}.xlsx"
+        if scrape_question.lower() == 'b':
+            save_name = name.replace(' ', '-').lower()
+            out_path = f"resources\\{today}-{save_name}.xlsx"
+        df.to_excel(out_path)
+    except WebDriverException as wd_e:
+        print(f"\n Detected as a bot or chrome window closed. Saving completed results. Fetched error{wd_e}")
+        df = pd.DataFrame(people, columns=['link', 'name', 'location', 'university', 'degree', 'grad_date', 'position_title', 'company_name', 'job_location', 'duration', 'data_integrity'])
+        today = str(datetime.now())[0:10]
+        total_searched = len(links)
+        if scrape_question.lower() == 'a':
+            out_path = f"resources\\{today}-{search_term}-{numscraped}/{total_searched}.xlsx"
+        if scrape_question.lower() == 'b':
+            save_name = name.replace(' ', '-').lower()
+            out_path = f"resources\\{today}-{save_name}.xlsx"
+        df.to_excel(out_path)
+
+scrape()
+
+
